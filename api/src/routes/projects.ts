@@ -6,9 +6,11 @@ import { HttpError } from "../middleware/error.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/project.js";
 import { RESERVED_SLUGS } from "../lib/slug.js";
+import postRoutes from "./posts.js";
 
 const router = Router();
 router.use(requireAuth);
+router.use("/:slug/posts", postRoutes);
 
 const slugSchema = z
   .string()

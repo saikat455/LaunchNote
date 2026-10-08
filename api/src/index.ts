@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.js";
 import projectRoutes from "./routes/projects.js";
 import { errorHandler } from "./middleware/error.js";
+import publicRoutes from "./routes/public.js";
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(cookieParser());
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 app.use("/auth", authRoutes);
 app.use("/projects", projectRoutes);
+app.use("/public", publicRoutes);
 
 app.use(errorHandler);
 

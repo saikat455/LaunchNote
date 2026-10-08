@@ -13,6 +13,18 @@ enum Role {
   MEMBER
 }
 
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum PostCategory {
+  NEW
+  IMPROVED
+  FIXED
+  ANNOUNCEMENT
+}
+
 model User {
   id           String          @id @default(cuid())
   email        String          @unique
@@ -21,6 +33,7 @@ model User {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   memberships  ProjectMember[]
+  posts        Post[]
 }
 
 model Project {
@@ -32,6 +45,7 @@ model Project {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   members     ProjectMember[]
+  posts       Post[]
 }
 
 model ProjectMember {
@@ -44,4 +58,24 @@ model ProjectMember {
   createdAt DateTime @default(now())
 
   @@unique([userId, projectId])
+}
+
+model Post {
+  id          String       @id @default(cuid())
+  title       String
+  slug        String
+  content     String       @default("")
+  excerpt     String       @default("")
+  category    PostCategory @default(NEW)
+  status      PostStatus   @default(DRAFT)
+  publishedAt DateTime?
+  projectId   String
+  authorId    String?
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([projectId, slug])
+  @@index([projectId, status, publishedAt])
 }
