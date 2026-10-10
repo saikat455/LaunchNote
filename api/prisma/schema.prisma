@@ -46,6 +46,7 @@ model Project {
   updatedAt   DateTime        @updatedAt
   members     ProjectMember[]
   posts       Post[]
+  feedback    Feedback[]
 }
 
 model ProjectMember {
@@ -78,4 +79,56 @@ model Post {
 
   @@unique([projectId, slug])
   @@index([projectId, status, publishedAt])
+}
+
+enum FeedbackStatus {
+  UNDER_REVIEW
+  PLANNED
+  IN_PROGRESS
+  DONE
+  DECLINED
+}
+
+model Feedback {
+  id           String            @id @default(cuid())
+  title        String
+  description  String            @default("")
+  status       FeedbackStatus    @default(UNDER_REVIEW)
+  authorName   String
+  authorEmail  String?
+  voteCount    Int               @default(0)
+  commentCount Int               @default(0)
+  projectId    String
+  project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  votes        FeedbackVote[]
+  comments     FeedbackComment[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([projectId, status])
+  @@index([projectId, voteCount])
+}
+
+model FeedbackVote {
+  id         String   @id @default(cuid())
+  voterId    String
+  feedbackId String
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  // one vote per visitor per idea, enforced by the database
+  @@unique([feedbackId, voterId])
+}
+
+model FeedbackComment {
+  id         String   @id @default(cuid())
+  body       String
+  authorName String
+  isTeam     Boolean  @default(false)
+  userId     String?
+  feedbackId String
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([feedbackId, createdAt])
 }

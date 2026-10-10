@@ -1,16 +1,20 @@
 import { Router } from "express";
+import { Prisma, type Role } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import type { Role } from "../lib/role.js";
 import { HttpError } from "../middleware/error.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/project.js";
 import { RESERVED_SLUGS } from "../lib/slug.js";
 import postRoutes from "./posts.js";
+import feedbackRoutes from "./feedback.js";
 
 const router = Router();
 router.use(requireAuth);
+
+// nested routes (must come before the "/:slug" routes below)
 router.use("/:slug/posts", postRoutes);
+router.use("/:slug/feedback", feedbackRoutes);
 
 const slugSchema = z
   .string()
@@ -42,11 +46,6 @@ type ProjectRow = {
   createdAt: Date;
 };
 
-type MembershipRow = {
-  project: ProjectRow;
-  role: Role;
-};
-
 function toDto(p: ProjectRow, role: Role) {
   return {
     id: p.id,
@@ -66,11 +65,7 @@ router.get("/", async (_req, res) => {
     include: { project: true },
     orderBy: { createdAt: "asc" },
   });
-  res.json({
-    projects: memberships.map((membership: MembershipRow) =>
-      toDto(membership.project, membership.role)
-    ),
-  });
+  res.json({ projects: memberships.map((m) => toDto(m.project, m.role)) });
 });
 
 // Create a project (creator becomes OWNER)
@@ -94,12 +89,7 @@ router.post("/", async (req, res) => {
     res.status(201).json({ project: toDto(project, "OWNER") });
   } catch (e) {
     // Two people creating the same slug at the same moment
-    if (
-      typeof e === "object" &&
-      e !== null &&
-      "code" in e &&
-      e.code === "P2002"
-    ) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       throw new HttpError(409, "This slug is already taken");
     }
     throw e;
