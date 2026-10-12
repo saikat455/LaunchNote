@@ -253,4 +253,59 @@ router.post("/:slug/feedback/:id/comments", submitLimiter, async (req, res) => {
   res.status(201).json({ comment: commentDto(comment) });
 });
 
+/* ------------------------------- Roadmap ------------------------------- */
+
+const roadmapSelect = {
+  id: true,
+  title: true,
+  voteCount: true,
+  commentCount: true,
+  post: { select: { title: true, slug: true, status: true } },
+} satisfies Prisma.FeedbackSelect;
+
+type RoadmapRow = Prisma.FeedbackGetPayload<{ select: typeof roadmapSelect }>;
+
+function roadmapCard(i: RoadmapRow) {
+  return {
+    id: i.id,
+    title: i.title,
+    voteCount: i.voteCount,
+    commentCount: i.commentCount,
+    // only link to the changelog post if it is actually published
+    shippedPost:
+      i.post && i.post.status === "PUBLISHED"
+        ? { title: i.post.title, slug: i.post.slug }
+        : null,
+  };
+}
+
+router.get("/:slug/roadmap", async (req, res) => {
+  const project = await findProject(req.params.slug as string);
+
+  const load = (status: "PLANNED" | "IN_PROGRESS" | "DONE") =>
+    prisma.feedback.findMany({
+      where: { projectId: project.id, status },
+      select: roadmapSelect,
+      orderBy:
+        status === "DONE"
+          ? [{ updatedAt: "desc" }]
+          : [{ roadmapPosition: "asc" }, { voteCount: "desc" }, { createdAt: "desc" }],
+      take: status === "DONE" ? 30 : 100,
+    });
+
+  const [planned, inProgress, done] = await Promise.all([
+    load("PLANNED"),
+    load("IN_PROGRESS"),
+    load("DONE"),
+  ]);
+
+  res.json({
+    roadmap: {
+      planned: planned.map(roadmapCard),
+      inProgress: inProgress.map(roadmapCard),
+      done: done.map(roadmapCard),
+    },
+  });
+});
+
 export default router;

@@ -16,7 +16,12 @@ const listQuery = z.object({
   q: z.string().trim().max(100).optional(),
 });
 
-const statusSchema = z.object({ status: z.enum(statuses) });
+const updateSchema = z
+  .object({
+    status: z.enum(statuses).optional(),
+    postId: z.string().min(1).nullable().optional(),
+  })
+  .refine((d) => d.status !== undefined || d.postId !== undefined, "Nothing to update");
 const commentSchema = z.object({ body: z.string().trim().min(1).max(2000) });
 
 async function getFeedbackOr404(projectId: string, id: string) {
@@ -84,15 +89,27 @@ router.get("/:id", requireProjectRole(), async (req, res) => {
   });
 });
 
-// Change status (OWNER / ADMIN)
+// Change status and/or linked changelog post (OWNER / ADMIN)
 router.patch("/:id", requireProjectRole("OWNER", "ADMIN"), async (req, res) => {
   const id = req.params.id as string;
-  const { status } = statusSchema.parse(req.body);
-  const existing = await getFeedbackOr404(res.locals.project.id, id);
+  const data = updateSchema.parse(req.body);
+  const projectId = res.locals.project.id as string;
+  const existing = await getFeedbackOr404(projectId, id);
+
+  if (data.postId) {
+    const post = await prisma.post.findFirst({
+      where: { id: data.postId, projectId },
+      select: { id: true },
+    });
+    if (!post) throw new HttpError(400, "Post not found in this project");
+  }
 
   const item = await prisma.feedback.update({
     where: { id: existing.id },
-    data: { status },
+    data: {
+      ...(data.status !== undefined ? { status: data.status } : {}),
+      ...(data.postId !== undefined ? { postId: data.postId } : {}),
+    },
     include: { comments: { orderBy: { createdAt: "asc" } } },
   });
 

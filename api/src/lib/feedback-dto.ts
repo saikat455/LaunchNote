@@ -1,6 +1,6 @@
 import type { Feedback, FeedbackComment } from "@prisma/client";
 
-// Email is only included for the team dashboard, never on public pages
+// Team-only fields (email, linked post) are never included on public pages
 export function feedbackDto(f: Feedback, opts: { includeEmail?: boolean } = {}) {
   return {
     id: f.id,
@@ -8,7 +8,7 @@ export function feedbackDto(f: Feedback, opts: { includeEmail?: boolean } = {}) 
     description: f.description,
     status: f.status,
     authorName: f.authorName,
-    ...(opts.includeEmail ? { authorEmail: f.authorEmail } : {}),
+    ...(opts.includeEmail ? { authorEmail: f.authorEmail, postId: f.postId } : {}),
     voteCount: f.voteCount,
     commentCount: f.commentCount,
     createdAt: f.createdAt,

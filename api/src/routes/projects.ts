@@ -8,6 +8,7 @@ import { requireProjectRole } from "../middleware/project.js";
 import { RESERVED_SLUGS } from "../lib/slug.js";
 import postRoutes from "./posts.js";
 import feedbackRoutes from "./feedback.js";
+import roadmapRoutes from "./roadmap.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -15,6 +16,7 @@ router.use(requireAuth);
 // nested routes (must come before the "/:slug" routes below)
 router.use("/:slug/posts", postRoutes);
 router.use("/:slug/feedback", feedbackRoutes);
+router.use("/:slug/roadmap", roadmapRoutes);
 
 const slugSchema = z
   .string()
