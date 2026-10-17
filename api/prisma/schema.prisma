@@ -15,6 +15,7 @@ enum Role {
 
 enum PostStatus {
   DRAFT
+  SCHEDULED
   PUBLISHED
 }
 
@@ -33,6 +34,12 @@ enum FeedbackStatus {
   DECLINED
 }
 
+enum AnalyticsEventType {
+  PAGE_VIEW
+  WIDGET_OPEN
+  WIDGET_CLICK
+}
+
 model User {
   id           String          @id @default(cuid())
   email        String          @unique
@@ -45,16 +52,19 @@ model User {
 }
 
 model Project {
-  id          String          @id @default(cuid())
-  name        String
-  slug        String          @unique
-  description String?
-  websiteUrl  String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  members     ProjectMember[]
-  posts       Post[]
-  feedback    Feedback[]
+  id               String           @id @default(cuid())
+  name             String
+  slug             String           @unique
+  description      String?
+  websiteUrl       String?
+  widgetLastSeenAt DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  members          ProjectMember[]
+  posts            Post[]
+  feedback         Feedback[]
+  events           AnalyticsEvent[]
+  invites          ProjectInvite[]
 }
 
 model ProjectMember {
@@ -69,25 +79,42 @@ model ProjectMember {
   @@unique([userId, projectId])
 }
 
-model Post {
-  id          String       @id @default(cuid())
-  title       String
-  slug        String
-  content     String       @default("")
-  excerpt     String       @default("")
-  category    PostCategory @default(NEW)
-  status      PostStatus   @default(DRAFT)
-  publishedAt DateTime?
+model ProjectInvite {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  role        Role      @default(MEMBER)
   projectId   String
-  authorId    String?
-  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  author      User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
-  feedback    Feedback[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdById String?
+  usedById    String?
+  usedAt      DateTime?
+  expiresAt   DateTime
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([projectId, usedAt])
+}
+
+model Post {
+  id           String       @id @default(cuid())
+  title        String
+  slug         String
+  content      String       @default("")
+  excerpt      String       @default("")
+  category     PostCategory @default(NEW)
+  status       PostStatus   @default(DRAFT)
+  publishedAt  DateTime?
+  scheduledFor DateTime?
+  projectId    String
+  authorId     String?
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author       User?        @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  feedback     Feedback[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@unique([projectId, slug])
   @@index([projectId, status, publishedAt])
+  @@index([status, scheduledFor])
 }
 
 model Feedback {
@@ -135,4 +162,18 @@ model FeedbackComment {
   createdAt  DateTime @default(now())
 
   @@index([feedbackId, createdAt])
+}
+
+model AnalyticsEvent {
+  id        String             @id @default(cuid())
+  type      AnalyticsEventType
+  page      String             @default("")
+  ref       String?
+  visitorId String
+  projectId String
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+
+  @@index([projectId, type, createdAt])
+  @@index([projectId, page, ref])
 }

@@ -25,6 +25,10 @@ const updateSchema = z.object({
   category: z.enum(categories).optional(),
 });
 
+const scheduleSchema = z.object({
+  scheduledFor: z.string().datetime("Pick a valid date and time"),
+});
+
 const canPublish = (role: Role) => role === "OWNER" || role === "ADMIN";
 
 type PostLike = Omit<Post, "content"> & {
@@ -41,6 +45,7 @@ function toDto(p: PostLike) {
     category: p.category,
     status: p.status,
     publishedAt: p.publishedAt,
+    scheduledFor: p.scheduledFor,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
     author: p.author ?? null,
@@ -118,8 +123,8 @@ router.patch("/:postId", requireProjectRole(), async (req, res) => {
   const existing = await getPostOr404(res.locals.project.id, postId);
   const data = updateSchema.parse(req.body);
 
-  if (existing.status === "PUBLISHED" && !canPublish(res.locals.role)) {
-    throw new HttpError(403, "Only owners and admins can edit published posts");
+  if (existing.status !== "DRAFT" && !canPublish(res.locals.role)) {
+    throw new HttpError(403, "Only owners and admins can edit published or scheduled posts");
   }
 
   const patch: {
@@ -134,8 +139,8 @@ router.patch("/:postId", requireProjectRole(), async (req, res) => {
   if (data.content !== undefined) {
     patch.content = cleanHtml(data.content);
     patch.excerpt = makeExcerpt(patch.content);
-    if (existing.status === "PUBLISHED" && !patch.excerpt) {
-      throw new HttpError(400, "A published post cannot be empty");
+    if (existing.status !== "DRAFT" && !patch.excerpt) {
+      throw new HttpError(400, "A published or scheduled post cannot be empty");
     }
   }
 
@@ -147,7 +152,7 @@ router.patch("/:postId", requireProjectRole(), async (req, res) => {
   res.json({ post: toDto(post) });
 });
 
-// Publish
+// Publish now (also cancels a schedule)
 router.post("/:postId/publish", requireProjectRole("OWNER", "ADMIN"), async (req, res) => {
   const postId = req.params.postId as string;
   const existing = await getPostOr404(res.locals.project.id, postId);
@@ -155,7 +160,11 @@ router.post("/:postId/publish", requireProjectRole("OWNER", "ADMIN"), async (req
 
   const post = await prisma.post.update({
     where: { id: existing.id },
-    data: { status: "PUBLISHED", publishedAt: existing.publishedAt ?? new Date() },
+    data: {
+      status: "PUBLISHED",
+      publishedAt: existing.publishedAt ?? new Date(),
+      scheduledFor: null,
+    },
     include: { author: { select: { name: true } } },
   });
   res.json({ post: toDto(post) });
@@ -168,7 +177,50 @@ router.post("/:postId/unpublish", requireProjectRole("OWNER", "ADMIN"), async (r
 
   const post = await prisma.post.update({
     where: { id: existing.id },
-    data: { status: "DRAFT" },
+    data: { status: "DRAFT", scheduledFor: null },
+    include: { author: { select: { name: true } } },
+  });
+  res.json({ post: toDto(post) });
+});
+
+// Schedule (or reschedule) for a future time
+router.post("/:postId/schedule", requireProjectRole("OWNER", "ADMIN"), async (req, res) => {
+  const postId = req.params.postId as string;
+  const { scheduledFor } = scheduleSchema.parse(req.body);
+  const existing = await getPostOr404(res.locals.project.id, postId);
+
+  if (existing.status === "PUBLISHED") {
+    throw new HttpError(400, "This post is already published");
+  }
+  if (!existing.excerpt) {
+    throw new HttpError(400, "Add some content before scheduling");
+  }
+
+  const when = new Date(scheduledFor);
+  if (when.getTime() < Date.now() + 30_000) {
+    throw new HttpError(400, "Pick a time in the future");
+  }
+
+  const post = await prisma.post.update({
+    where: { id: existing.id },
+    data: { status: "SCHEDULED", scheduledFor: when },
+    include: { author: { select: { name: true } } },
+  });
+  res.json({ post: toDto(post) });
+});
+
+// Cancel a schedule (back to draft)
+router.post("/:postId/unschedule", requireProjectRole("OWNER", "ADMIN"), async (req, res) => {
+  const postId = req.params.postId as string;
+  const existing = await getPostOr404(res.locals.project.id, postId);
+
+  if (existing.status !== "SCHEDULED") {
+    throw new HttpError(400, "This post is not scheduled");
+  }
+
+  const post = await prisma.post.update({
+    where: { id: existing.id },
+    data: { status: "DRAFT", scheduledFor: null },
     include: { author: { select: { name: true } } },
   });
   res.json({ post: toDto(post) });

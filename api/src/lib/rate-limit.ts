@@ -17,3 +17,12 @@ export const submitLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "You're posting too fast. Please try again later." },
 });
+
+// Analytics events: 60 per minute per IP (generous, but stops floods)
+export const trackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { message: "Too many events." },
+});

@@ -6,8 +6,19 @@ import { HttpError } from "../middleware/error.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requireProjectRole } from "../middleware/project.js";
 import { RESERVED_SLUGS } from "../lib/slug.js";
+import postRoutes from "./posts.js";
+import feedbackRoutes from "./feedback.js";
+import roadmapRoutes from "./roadmap.js";
+import analyticsRoutes from "./analytics.js";
+import memberRoutes from "./members.js";
 const router = Router();
 router.use(requireAuth);
+// nested routes (must come before the "/:slug" routes below)
+router.use("/:slug/posts", postRoutes);
+router.use("/:slug/feedback", feedbackRoutes);
+router.use("/:slug/roadmap", roadmapRoutes);
+router.use("/:slug/analytics", analyticsRoutes);
+router.use("/:slug/members", memberRoutes);
 const slugSchema = z
     .string()
     .min(3, "Slug must be at least 3 characters")
@@ -30,6 +41,7 @@ function toDto(p, role) {
         slug: p.slug,
         description: p.description,
         websiteUrl: p.websiteUrl,
+        widgetLastSeenAt: p.widgetLastSeenAt,
         role,
         createdAt: p.createdAt,
     };
